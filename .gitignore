@@ -1,0 +1,8 @@
+*.pem
+db-data
+gitlab_kops_cert_user
+gitlab_kops_cert_user1
+gitlab_kops_cert_user2_cluster2
+gitlab_kops_cert_user3_cluster2
+gitlab_cluster2_certs
+base64
