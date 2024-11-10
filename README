@@ -1,0 +1,75 @@
+# c11_KOPS_Helm_Gitlab_pipeline_integration_with_3_tier_microservice_source_code_on_private_linode_VPS_devops_ecosystem to a kops cluster:
+
+## KOPS cluster requirement:
+
+In order to run both staging (on staging namespace) and production (on default ns) deployments at the same time, must use at least 2 noded in the kops cluster.   If the cluster is brought up initially with only 1 node the production deployment will not come up fully due to resource issues.
+
+### To add a node to an existing cluster do the following:
+
+First get the instancegroup name for the node(s) on the existing cluster
+
+kops get instancegroups
+NAME                            ROLE            MACHINETYPE     MIN     MAX     ZONES
+control-plane-us-east-1a        ControlPlane    t3.small        1       1       us-east-1a
+nodes-us-east-1a                Node            t3.small        1       1       us-east-1a
+
+
+Next edit the instancegroup configuration:  kops edit ig nodes-us-east-1a
+
+The file will look something like this:
+Change the minSize to 2 and the maxSize to 3
+
+#Please edit the object below. Lines beginning with a '#' will be ignored,
+#and an empty file will abort the edit. If an error occurs while saving this file will be
+#opened with the relevant failures.
+#
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  creationTimestamp: "2024-11-09T23:31:03Z"
+  labels:
+    kops.k8s.io/cluster: cluster2.**********.com
+  name: nodes-us-east-1a
+spec:
+  image: 099720109477/ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20240610
+  instanceMetadata:
+    httpPutResponseHopLimit: 1
+    httpTokens: required
+  machineType: t3.small
+  maxSize: 3
+  minSize: 2
+  role: Node
+  subnets:
+  - us-east-1a
+
+save the file.
+
+Reapply the config to the kops cluster with: kops update cluster --yes or kops update cluster --yes --admin
+
+The new instancegroup will look like this with MIN as 2 and MAX as 3
+
+$ kops get instancegroups
+NAME                            ROLE            MACHINETYPE     MIN     MAX     ZONES
+control-plane-us-east-1a        ControlPlane    t3.small        1       1       us-east-1a
+nodes-us-east-1a                Node            t3.small        2       3       us-east-1a
+
+It will take a while for the new node to come up but once it does the cluster should look like this:
+
+$ kubectl get node
+NAME                  STATUS     ROLES           AGE    VERSION
+i-0ce3ed1cbe2e452d2   Ready      node            140m   v1.26.15
+i-0ef22f1974264342e   NotReady   <none>          1s     v1.26.15
+i-0f6b21d0dc92f229f   Ready      control-plane   142m   v1.26.15
+
+
+$ kubectl get node
+NAME                  STATUS   ROLES           AGE    VERSION
+i-0ce3ed1cbe2e452d2   Ready    node            141m   v1.26.15
+i-0ef22f1974264342e   Ready    node            86s    v1.26.15
+i-0f6b21d0dc92f229f   Ready    control-plane   144m   v1.26.15
+
+At this point both the staging (DELIVER stage) and the production (DEPLOY stage) should be successfully launched and run at the same time in their respective namespaces staging and default onl the k8s cluster.
+
+
+
+
