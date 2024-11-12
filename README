@@ -62,7 +62,7 @@ i-0ef22f1974264342e   NotReady   <none>          1s     v1.26.15
 i-0f6b21d0dc92f229f   Ready      control-plane   142m   v1.26.15
 
 
-$ kubectl get node
+#$ kubectl get node
 NAME                  STATUS   ROLES           AGE    VERSION
 i-0ce3ed1cbe2e452d2   Ready    node            141m   v1.26.15
 i-0ef22f1974264342e   Ready    node            86s    v1.26.15
@@ -76,16 +76,124 @@ At this point both the staging (DELIVER stage) and the production (DEPLOY stage)
 
 
 
+
+
+
 ## High level summary:
 
-This uses a gitlab pipeline to deploy the 3 tier microservice app using helm to a KOPS cluster. The gitlab pipeline uses helm charts to deploy the 3 tier microservice app to a KOPS cluster.  The README has the administrative tasks required. A notable difference between deploying to AWS EKS cluster (see other project) vs. a KOPS cluster is the requirement for CA signing of the kube config file in KOPS as well as generating a CSR request to the K8s API server (master) and also generating a client side private key.  A new kube config file has to be created from these components manually and it is quite involved. The process is detailed below in this README file.  The user for the KOPS cluster it gitlab_cluster2.   Once the kube config file is created for the gitlab_cluster2 user, it has to be converted to base64. At this point it can then be pasted into the ENV var KUBECONFIG_KOPS in the gitlab kops pipeline project.  The kubeconfig file is the only credential needed for this gitlab_cluster2 user to provision the kops cluster (note cicd role and policy permissions have to be configured just like with the AWS EKS cluster; this is detailed below as well).  With the AWS EKS cluster the standard kube ocnfig could be used but AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have to also be added to the ENV variables in the gitlab project.  KOPS does not need AWS credentials. (They are only required from the EC2 controller when creating the kops cluster infra itself on AWS)
+This uses a gitlab pipeline to deploy the 3 tier microservice app using helm to a KOPS cluster. The gitlab pipeline uses helm charts to deploy the 3 tier microservice app to a KOPS cluster.  The README has the administrative tasks required. A notable difference between deploying to AWS EKS cluster (see other project) vs. a KOPS cluster is the requirement for CA signing of the kube config file in KOPS as well as generating a CSR request to the K8s API server (master) and also generating a client side private key.  A new kube config file has to be created from these components manually and it is quite involved. The process is detailed below in this README file.  The user for the KOPS cluster it gitlab_cluster2.   Once the kube config file is created for the gitlab_cluster2 user, it has to be converted to base64. At this point it can then be pasted into the ENV var KUBECONFIG_KOPS in the gitlab kops pipeline project.  The kubeconfig file is the only credential needed for this gitlab_cluster2 user to provision the kops cluster (note cicd role and policy permissions have to be configured just like with the AWS EKS cluster; this is detailed below as well).  With the AWS EKS cluster the standard kube config could be used but AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have to also be added to the ENV variables in the gitlab project.  KOPS does not need AWS credentials. (They are only required from the EC2 controller when creating the kops cluster infra itself on AWS)
 
 IMPORTANT NOTE: this is using the private linode VPS devops ecosystem and gitlab running in that environment in a docker container.  It is not using a  public gitlab
 The gitlab runner is running as a systemctl service on the VPS and not as a docker container on the VPS
 The gitlab app is running as a docker container on the VPS
-In order to facilitate registration of gitlab runner executors with the gitlab iptables and traefik routers have to be configured to allow communcaiton from the VPS ip (gitalb runner) to the gitlab docker container ip address space. This has all be configured as part of the VPS project infrastructure (separate github project repository) using ansible from the EC2 controller.
+In order to facilitate registration of gitlab runner executors with the gitlab iptables and traefik routers have to be configured to allow communcaiton from the VPS ip (gitalb runner) to the gitlab docker container ip address space. This has all been configured as part of the VPS project infrastructure (separate github project repository) using ansible from the EC2 controller.
 
 To keep the projects separate for instruction purposes, I created separate docker repos for the docker images on docker hub.  The AWS EKS project has index "3" images whereas this kops project has docker images with the "4" index.
+
+
+
+## gitlab runner executor type:
+
+The .gitlab-ci.yml file stages (jobs) for this project require a docker executor type runner. The .gitlab-ci.yml stages will not run properly with the shell script instance runner.  The docker executor type runner has been configured as runner #6 on the gitlab.  The reason why the docker runner is suited is becasue it abstracts the installation of aws and/or kops and/or helm from the underlying runner OS.   For example, spinnning up an alpine helm image is best when using helm to deploy the docker images that have been created and pushed to docker hub from the source code.  The docker in docker (dind) completely removes dependency OS issues and ensures that the .gitlab-ci.yml script will run properly.
+
+To configure a gitlab runner as docker executor type there are a few special things that must be done, otherwise the docker executor will not come up properly even if registered with gitlab.
+
+Each gitlab runner executor has a unique token that is used to register with the gitlab docker instance. As noted above, the gitlab runner itself is runnig as a systemctl service on the VPS and the gitlab is running as a docker container on the VPS. The gitlab runner can have many different executors running on various gitlab projects as configured thorugh the gitlab Web Console in the project area.
+
+The gitlab runner systemctl status can be seen with: systemctl status gitlab-runner
+The most recent logs will be shown. To see more logs simply run: systemct status gitlab-runner -n 1000 
+This will show if any of the executors failed to come up.
+
+For the docker executor runner it is easiest to leave the instance runner as is (as a shell executor) and configure another runner at the project level. Once the executor is created it can be applied to other projects, for example both the EKS and the kops varaiants of this project.
+
+The current configurations for each executor running on the gitlab-runner can be seen here:
+cat /etc/gitlab-runner/config.toml 
+
+For the docker executor gitlab runner the configuration will look like this once it is registered with the gitlab-runner:
+
+[[runners]]
+  name = "vps6.linode.cloudnetworktesitng.com"  <<<< the name must be unique amongst the other executory types; ignore the typo, it does not matter>>>>
+  url = "https://gitlab.linode.cloudnetworktesting.com"
+  id = 6
+  token = "**********************" <<<<< this is the token that is obtained after creating the executor on the gitlab Web console >>>>>
+  token_obtained_at = 2024-11-01T22:25:05Z
+  token_expires_at = 0001-01-01T00:00:00Z
+  executor = "docker"
+  [runners.custom_build_dir]
+  [runners.cache]
+    MaxUploadedArchiveSize = 0
+    [runners.cache.s3]
+    [runners.cache.gcs]
+    [runners.cache.azure]
+  [runners.docker]
+    tls_verify = false
+    image = "docker:24.0.5" <<<< this is a stable version for the default>>>>
+    privileged = true  <<<<<<<<<<<<<<<< must be in priveleged mode >>>>>>>>>>>>>>>>
+    disable_entrypoint_overwrite = false
+    oom_kill_disable = false
+    disable_cache = false
+    volumes = ["/certs/client", "/cache"]  <<<< the /certs/client is required for the TLS cert to run>>>>
+    shm_size = 0
+    network_mtu = 0
+
+Step1: Configure the executor under the project as a project level runner and as docker executor type.
+The token will be provided.
+
+Step2: Oo not use the default gitlab registration command sytax indicated in the above Step1. Rather use the following (this is required because the .gitlab-ci.yml is using dind, i.e. docker in docker)
+
+sudo gitlab-runner register -n --url https://gitlab.linode.cloudnetworktesting.com   --token ************* --name vps6.linode.cloudnetworktesitng.com --executor docker --docker-image "docker:24.0.5" --docker-privileged --docker-volumes "/certs/client"
+
+
+This command registers a new runner executor to use the docker:24.0.5 image (if none is specified at the job level). To start the build and service containers, it uses the privileged mode. If you want to use Docker-in-Docker (dind), you must always use privileged = true in your Docker containers.
+
+This command mounts /certs/client for the service and build container, which is needed for the Docker client to use the certificates in that directory
+
+Note the last 2 flags: docker-privileged mode must be configured and the docker volume of "/certs/client" must be configured as well. If these are not configured the executor will not be able to connect to the local sockets on gitlab-runner when trying to run the pipline job and you will see this:
+
+Health check container logs:
+2024-11-01T20:33:20.637535826Z waiting for TCP connection to 172.21.0.2 on [2375 2376]...
+2024-11-01T20:33:20.637592567Z dialing 172.21.0.2:2376...
+2024-11-01T20:33:20.637599187Z dialing 172.21.0.2:2375...
+
+
+Step3: To use this executor in the .gitlab-ci.yml script do the following (I found this only had to be done in the first stage/job; the rest of the stages ran fine without the configuration)
+
+This is the first stage/job the BUILD stage of the pipeline:
+
+build:
+  #image: docker:latest
+  image: docker:24.0.5   <<<<< NOTE   >>>>>
+  #this is a docker image that has the docker client baked into it. Used in CI/CD to build docker images
+  #from a container
+  stage: build
+  #name of the stage for reference in the pipeline
+  services:
+    - docker:24.0.5-dind <<<<<< NOTE  >>>>>>
+    #- docker:dind
+    # docker in docker service
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"  <<<<<<<< NOTE >>>>>>>>
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+    # this will run before main script below. Login using the gitlab credentials that we added to gitlab project
+  script:
+    - cd source_files/weatherapp_4_0.0.1/auth
+  
+    - docker build -t $CI_REGISTRY_USER/weatherapp-auth4 . --no-cache
+
+    - cd ../UI
+    - docker build -t $CI_REGISTRY_USER/weatherapp-ui4 .
+
+    - cd ../weather
+    - docker build -t $CI_REGISTRY_USER/weatherapp-weather4 .
+  rules: 
+    - if: '$CI_COMMIT_TAG == null'
+ 
+
+
+
+
+
 
 
 ## github and gitlab repository design:
@@ -107,4 +215,714 @@ There is no need to synch up the feature branches on EC2.  They are removed on g
 
 
 
+## Basic kops bring up commands
+
+This uses an alternate cluster2.   2 clusters are brought up but only the second cluster will be used for his project.   2 clusters are not a requirement for this project.
+
+The Route53 NS for the domains below are already configured, as the kops k8s cluster wlll be deployed to AWS2 account
+
+
+
+Cluster1:
+Set this up as a 1 node cluster
+
+In first terminal:
+export KOPS_CLUSTER_NAME=kops-project14.***********.com
+
+export KOPS_STATE_STORE=s3://course3-kops-aws2-s3-state
+
+The key for API master node access is: 
+ssh-keygen -t rsa -f course11-aws2-kops
+
+kops create cluster --node-count=1 --node-size=t3.small --zones=us-east-1a --master-size=t3.small --master-zones=us-east-1a --ssh-public-key=course11-aws2-kops.pub
+
+kops update cluster --name kops-project14.**************.com --yes --admin
+
+kops validate cluster
+
+(To delete the cluster: kops delete cluster --yes)
+
+
+
+
+Cluster2:
+See section above. This is the one that will run the staging and production environments (using staging and default namespaces).  To be able to run both staging and production at the same time, I found that at least 2 t3-small nodes must be configured.   Ideally configure MIN=2 and MAX=3 (see below)
+
+In the second terminal:
+
+export KOPS_CLUSTER_NAME=cluster2.***********.com
+
+export KOPS_STATE_STORE=s3://course3-kops-cluster2-aws2-s3-state
+
+The key for API master node access is: 
+ssh-keygen -t rsa -f course11-aws2-kops
+
+NOTE: need at least 2 nodes
+
+kops create cluster --node-count=2 --node-size=t3.small --zones=us-east-1a,us-east-1b --master-size=t3.small --master-zones=us-east-1a --ssh-public-key=course11-aws2-kops.pub
+
+kops update cluster --name cluster2.**************.com --yes --admin
+
+kops validate cluster
+
+(To delete the cluster: kops delete cluster --yes)
+
+
+
+### If the cluster2 is already up you can add an additional node to the running cluster2 by doing the following:
+
+
+First, get the instance group:
+
+kops get instancegroups
+
+For example,
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/kops_course10_port$ kops get instancegroups
+NAME                            ROLE            MACHINETYPE     MIN     MAX     ZONES
+control-plane-us-east-1a        ControlPlane    t3.small        1       1       us-east-1a
+nodes-us-east-1a                Node            t3.small        1       1       us-east-1a
+
+
+Modify the min and max node counts to min=2 and max=3 by doing an edit of the instancegroup:
+kops edit ig nodes-us-east-1a
+
+#Please edit the object below. Lines beginning with a '#' will be ignored,
+#and an empty file will abort the edit. If an error occurs while saving this file will be
+#reopened with the relevant failures.
+
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  creationTimestamp: "2024-11-09T23:31:03Z"
+  labels:
+    kops.k8s.io/cluster: cluster2.holinessinloveofchrist.com
+  name: nodes-us-east-1a
+spec:
+  image: 099720109477/ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20240610
+  instanceMetadata:
+    httpPutResponseHopLimit: 1
+    httpTokens: required
+  machineType: t3.small
+  maxSize: 3  <<<<< NOTE >>>>>
+  minSize: 2 <<<< NOTE >>>>
+  role: Node
+  subnets:
+  - us-east-1a
+
+Save this and reapply the configuration to the running kops cluster: 
+kops update cluster --yes OR kops udpate cluster --yes --admin
+
+This will spin up another node in the cluster2 (note: it can take a while to come up; do a kubectl get node to verify that the second node is up and running)
+
+
+
+
+
+
 ## Implementation details for the kops gitlab_cluster2 user that is used by gitlab to provision the kops cluster with the app by using the gitlab pipeline:
+
+NOTE: the admin kube config file in ~/.kube/config on the EC2 controller will have both cluster1 and cluster2 certs in it. This is the admin kube config file. The gitlab_cluster2 user kube config file needs to be created manually with the process below:
+
+### Step1: Make sure you are in kubernetes context for cluster2 in the terminal:
+kubectl config get-contexts
+kubectl config use-context cluster2.**********.com
+
+### Step2: Create a new folder giltab_cluster2_certs* for the creation of all of the kube config cert material for gitlab_cluster2 user
+
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/weatherapp_course11_gitlab_linode_kops$ ls -la
+total 52
+drwxrwxr-x  6 ubuntu ubuntu  4096 Nov 12 01:17 .
+drwxrwxr-x 13 ubuntu ubuntu  4096 Nov  7 03:24 ..
+drwxrwxr-x  8 ubuntu ubuntu  4096 Nov 12 01:17 .git
+-rw-rw-r--  1 ubuntu ubuntu   175 Nov 10 00:01 .gitignore
+-rw-rw-r--  1 ubuntu ubuntu 15450 Nov 10 00:51 .gitlab-ci.yml
+-rw-rw-r--  1 ubuntu ubuntu  6862 Nov 12 01:17 README
+drwxrwxr-x  2 ubuntu ubuntu  4096 Nov  9 04:09 gitlab_cluster2_certs
+drwxrwxr-x  2 ubuntu ubuntu  4096 Nov 10 00:23 gitlab_cluster2_certs2
+drwxrwxr-x  4 ubuntu ubuntu  4096 Nov  7 03:30 source_files
+
+
+### Step3: In the gitlab_cluster2_certs* folder create the gitlab_cluster2 private key that will be used to authenticate to the master api node of the cluster2:
+
+openssl genrsa -out gitlab_cluster2.key 2048
+
+This will create gitlab_cluster2.key private key in the directory
+
+### Step4: Create the CSR (Cert request) to get the private key gitlab_cluster2.key signed by the api server of this cluster2 kops cluster context. NOTE: the user is named gitlab_cluster2 as indicated below. This name is that will be incorporated into the kube config file once all of the components are merged together:
+
+openssl req -new -key gitlab_cluster2.key -out gitlab_cluster2.csr
+
+This will create gitlab_cluster2.csr in the directory
+
+See below. The common name has to be "gitlab_cluster2"
+
+
+openssl req -new -key gitlab_cluster2.key -out gitlab_cluster2.csr
+
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Country Name (2 letter code) [AU]:
+State or Province Name (full name) [Some-State]:
+Locality Name (eg, city) []:
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:
+Organizational Unit Name (eg, section) []:
+Common Name (e.g. server FQDN or YOUR name) []:gitlab_cluster2  <<<<<<< NOTE >>>>>>>>>>
+Email Address []:
+
+Please enter the following 'extra' attributes
+to be sent with your certificate request
+A challenge password []:
+An optional company name []:
+
+
+
+### Step5: edit the gitlab-csr3_ORIGINAL.yaml file for this CSR request. We will use kubectl to the cluster2 to get the private key signed via this file.
+
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/weatherapp_course11_gitlab_linode_kops/gitlab_cluster2_certs2$ ls -la
+total 36
+drwxrwxr-x 2 ubuntu ubuntu 4096 Nov 10 00:23 .
+drwxrwxr-x 6 ubuntu ubuntu 4096 Nov 12 01:17 ..
+-rw-rw-r-- 1 ubuntu ubuntu 1521 Nov 10 00:11 gitlab-csr3_ORIGINAL.yaml
+-rw-rw-r-- 1 ubuntu ubuntu  993 Nov 10 00:03 gitlab_cluster2.csr
+-rw------- 1 ubuntu ubuntu 1704 Nov 10 00:02 gitlab_cluster2.key
+
+The file looks like this:
+
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: gitlab_cluster2 <<<<<<<<<<<<<<< NOTE >>>>>>>>>>>>
+spec:
+  request:    <<<<<<<<< the CSR will be pasted here but it must be base64 encoded and newline removed>>>>>>>
+  signerName: kubernetes.io/kube-apiserver-client
+  usages:
+    - client auth
+
+
+
+
+### Step6: : base64 convert the gitlab_cluster2.csr file and remove the newlines. Paste this into yaml file above
+
+The command to do this: cat gitlab_cluster2.csr | base64 | tr -d '\n'
+
+Paste this output into the file above "request:"
+
+
+
+
+### Step7: submit the CSR request to get gitlab_cluster.key signed via kubectl command below to the api server
+
+First, make sure the terminal is set to the correct context (see earlier above)
+
+Submit the CSR request to the cluster2 api server:
+
+kubectl apply -f gitlab-csr3_ORIGINAL.yaml 
+certificatesigningrequest.certificates.k8s.io/gitlab_cluster2 created
+
+
+### Step8: Verify that that CSR has been submitted and is in pending state
+
+$ kubectl get csr
+NAME              AGE   SIGNERNAME                            REQUESTOR        REQUESTEDDURATION   CONDITION
+gitlab_cluster2   4s    kubernetes.io/kube-apiserver-client   kubecfg-Ubuntu   <none>              Pending
+
+NOTE that this is only on cluster2 context and NOT on cluster1 context.
+
+
+### Step9: As admimnistrator you can approve the CSR request with kubectl
+
+kubectl certificate approve gitlab_cluster2
+
+
+$ kubectl certificate approve gitlab_cluster2
+certificatesigningrequest.certificates.k8s.io/gitlab_cluster2 approved
+
+$ kubectl get csr
+NAME              AGE   SIGNERNAME                            REQUESTOR        REQUESTEDDURATION   CONDITION
+gitlab_cluster2   95s   kubernetes.io/kube-apiserver-client   kubecfg-Ubuntu   <none>              Approved,Issued
+
+
+
+### Step10: Decode the approved cert in plain text (extract the cert from the signed cert in base64). This will be saved as a *.crt file. This file is the signed counterpart public key to the private key gitlab_cluster2.key
+
+kubectl get csr gitlab_cluster2 -o jsonpath='{.status.certificate}' | base64 -d > gitlab_cluster2.crt
+
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/weatherapp_course11_gitlab_linode_kops/gitlab_cluster2_certs2$ ls -la
+total 36
+drwxrwxr-x 2 ubuntu ubuntu 4096 Nov 10 00:23 .
+drwxrwxr-x 6 ubuntu ubuntu 4096 Nov 12 01:17 ..
+-rw-rw-r-- 1 ubuntu ubuntu 1521 Nov 10 00:11 gitlab-csr3_ORIGINAL.yaml
+-rw-rw-r-- 1 ubuntu ubuntu 1200 Nov 10 00:16 gitlab_cluster2.crt  <<<< NOTE >>>>
+-rw-rw-r-- 1 ubuntu ubuntu  993 Nov 10 00:03 gitlab_cluster2.csr
+-rw------- 1 ubuntu ubuntu 1704 Nov 10 00:02 gitlab_cluster2.key
+
+
+### Step11: the signed public cert is gitlab_cluster2.crt and the private key is gitlab_cluster2.key
+
+
+### Step12: Get the CA cert for the current cluster2 kops deployment from the api master node:
+
+kubectl config view -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' --raw | base64 --decode > k8s-ca_cluster2.crt
+
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/weatherapp_course11_gitlab_linode_kops/gitlab_cluster2_certs2$ ls -la
+total 36
+drwxrwxr-x 2 ubuntu ubuntu 4096 Nov 10 00:23 .
+drwxrwxr-x 6 ubuntu ubuntu 4096 Nov 12 01:17 ..
+-rw-rw-r-- 1 ubuntu ubuntu 1521 Nov 10 00:11 gitlab-csr3_ORIGINAL.yaml
+-rw-rw-r-- 1 ubuntu ubuntu 1200 Nov 10 00:16 gitlab_cluster2.crt   
+-rw-rw-r-- 1 ubuntu ubuntu  993 Nov 10 00:03 gitlab_cluster2.csr
+-rw------- 1 ubuntu ubuntu 1704 Nov 10 00:02 gitlab_cluster2.key
+-rw-rw-r-- 1 ubuntu ubuntu 1090 Nov 10 00:17 k8s-ca_cluster2.crt  <<<< NOTE >>>>
+
+
+
+
+### Step13: Begin to integrate the .key, .crt, and k8s-ca_cluster2.crt file into a new gitlab_cluster2-config kubeconfig file that will be used to access cluster2 for gitlab_cluster2 user by gitlab CI/CD. The command below will add the CA cert to this gitlab_cluster2-config file (set the cluster) that has cluster2 name and api.cluster2 set as api server.
+
+kubectl config set-cluster $(kubectl config view -o jsonpath='{.clusters[0].name}') --server =$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}') --certificate-authority=k8s-ca_cluster2.crt --kubeconfig=gitlab_cluster2-config --embed-certs
+
+
+
+### Step14: There is a bug and the syntax below has to be corrected from the file created in Step15:
+
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/weatherapp_course11_gitlab_linode_kops/gitlab_cluster2_certs$ cat gitlab_cluster2-config 
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: ****************
+    server: =https://api.cluster2.************************.com
+  name: cluster2.************************.com
+contexts: null
+current-context: ""
+kind: Config
+preferences: {}
+users: null
+
+NOTE: the = sign in     server: =https://api.cluster2.************************.com
+This should be:
+ server: https://api.cluster2.************************.com
+
+
+
+### Step15: embed the public and private key certs of gitlab into the kubeconfig gitlab_cluster2-config file above. (the .key and .crt files) Note the user (credential) is set to gitlab_cluster2. This is critical:
+
+kubectl config set-credentials gitlab_cluster2 --client-certificate=gitlab_cluster2.crt --client-key=gitlab_cluster2.key --embed-certs --kubeconfig=gitlab_cluster2-config
+
+
+### Step16: the resulting gitlab_cluster-config file is the kube config file for gitlab_cluster2 that will allow provisioning of the kops cluster2 by gitlab via the KUBECONFIG_KOPS ENV variable configured in the project:
+
+$ kubectl config set-credentials gitlab_cluster2 --client-certificate=gitlab_cluster2.crt --client-key=gitlab_cluster2.key --embed-certs --kubeconfig=gitlab_cluster2-config
+User "gitlab_cluster2" set   <<<<<<< THIS HAS SET THE USER and public and private key of user on the kubeconfig file >>>>>>>
+
+
+
+### Step17: cat the gitlab_cluster2-config file and make sure public, private and CA cert are present as well as user set to gitlab_cluster2. This is the completed kubeconfig file for the gitlab_cluster2 user on cluster2 kops cluster:
+
+The config file should look something like this:
+
+gitlab_cluster2-config 
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: *******
+    server: =https://api.cluster2.***************.com
+  name: cluster2.**********************.com
+contexts: null
+current-context: ""
+kind: Config
+preferences: {}
+users:
+- name: gitlab_cluster2  <<<<<<<<<<<<<<< USER >>>>>>>>>>>>>>>
+  user:
+    client-certificate-data: ******* <<<<< PUBLIC cert for user >>>>>
+    client-key-data: ******* <<<< PRIVATE cert for user >>>>
+
+
+
+
+### Step18: Set the context  view for cluster2.**********************.com: user to gitlab_cluster2 and kubconfig file to gitlab_cluster2-config. The user gitlab_cluster2 is now bound to the cluster and uses this kubeconfig file for access: 
+
+
+NOTE: do not specify the --namespace flag because the gitlab_cluster2-config config file needs to be able to be used by gitlab_cluster2 for both staging and default namespaces. If you specify a namespace the cert will not be able to provision to the other namespace and will use the first namespace.   (For the DELIVER stage we need to deploy the app to the staging namespace and the DEPLOY stage we need to deploy the app to the production namespace).
+
+The command is below:
+
+$(kubectl config view -o jsonpath='{.clusters[0].name}') --user=gitlab_cluster2 --kubeconfig=gitlab_cluster2-config
+Context "cluster2.********************.com" created.
+
+
+
+### Step19: set the use context to cluster2.holinessinloveofchrist.com and use the gitlab_cluster2-config kubeconfig file:
+
+kubectl config use-context cluster2.**************.com --kubeconfig=gitlab_cluster2-config
+
+
+
+### Step20: Define the permissions for the gitlab_cluster2 user in the staging namespace:
+
+kubectl create ns staging
+
+kubectl create role cicd --verb="*" --resource="*" --namespace staging
+
+kubectl edit role cicd -n staging
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: "2024-07-18T01:06:15Z"
+  name: cicd
+  namespace: staging
+  resourceVersion: "30804"
+  uid: 7cf9c7ba-bbb3-406b-9366-c8785eb58b24
+rules:
+- apiGroups:
+  - '*'    <<<<<<<<<<<<<<<<<
+  resources:
+  - '*'
+  verbs:
+  - '*'
+~        
+
+
+kubectl create rolebinding cicd --role cicd --user=gitlab_cluster2 -n staging
+
+
+
+### Step 21: Do the same for the default ns:
+
+
+kubectl create role cicd --verb="*" --resource="*"
+
+kubectl edit role cicd
+
+kubectl create rolebinding cicd --role cicd --user=gitlab_cluster2
+
+
+### Step21: At this point the gitlab_cluster2 user of cluster2 should only be able to have access to staging and default ns and not any other namespaces
+
+this can be tested from a terminal (not the terminal above which is administrator kops)
+
+execute the following in the directory where the gitlab_cluster-config kube config is located::
+
+$ kubectl get pods  --kubeconfig gitlab_cluster2-config
+No resources found in staging namespace.
+
+ubuntu@ip-172-31-21-52:~/course3_projects/4_CICD_EKS_Gitlab/source_files/weatherapp/gitlab_kops_cert_user2_cluster2$ kubectl get pods -n staging  --kubeconfig gitlab_cluster2-config
+No resources found in staging namespace.
+
+$ kubectl get pods -n kube-system  --kubeconfig gitlab_cluster2-config
+Error from server (Forbidden): pods is forbidden: User "gitlab_cluster2" cannot list resource "pods" in API group "" in the namespace "kube-system"
+
+$ kubectl get node  --kubeconfig gitlab_cluster2-config
+Error from server (Forbidden): nodes is forbidden: User "gitlab_cluster2" cannot list resource "nodes" in API group "" at the cluster scope
+
+
+
+### Summary:
+
+The user gitlab_cluster2 is provisioned only with the permissions of role cicd on this cluster as shown above, and the access that gitlab_cluster2 has to the cluster2 is facilitated through the gitlab_cluster2-config kube config file. Because the ENV variable KUBECONFIG_KOPS is configured in this gitlab project, gitlab will have the same permissions above: access to only staging and default ns to provision the app.  Other namespaces will not be accessible by gitlab gitlab_cluster2 user.....
+
+The administrator user (the other terminal that the kops cluster was built in) will have access to all namespaces.
+
+
+### Step22: the rest of the CI/CD setup is similar to the EKS project above. The user for this kops cluster2 is gitlab_cluster2 user to be used in gitlab for authentication to the kops cluster2 provisioning in staging and default namespaces.
+
+
+
+
+
+
+
+
+
+
+## Create the ENV variables in this project on the Gitlab Web console:
+the following ENV variables are required for kops implementation.
+Note because the kops kube config file that is manually created (see below) is sufficient for the gitlab_cluster2 user to provision the cluster by (from) gitlab (the pipeline run), there is no need for the AWS credentials (only the EKS project requires this)
+
+The ENV variables are required:
+API_KEY (use the latest API_KEY)
+CI_REGISTRY_PASSWORD (docker password)
+CI_REGISTRY_USER (docker user)
+DB_PASSWORD
+KUBECONFIG_KOPS (this will have the kops gitlab_cluster2 user kube config file in base64 format; see  section above: the gitlab_cluster2-config kube config file; this is a complicated process and has to be redone each time a new kops cluster is created; best to create a script to do this)
+
+The base 64 conversion is done with this command:
+
+cat gitlab_cluster2_7_18-config | base64 | tr -d '\n' && echo
+
+The output needs to be pasted in KUBECONFIG_KOPS each time a new cluster is started and used with the gitlab project pipeline.
+The gitlab_cluster2 cert is unique for the api master node of the cluster.
+
+
+
+
+## The source code
+
+The source code for this project is the same source code as was used with the EKS version of this project.  The code has an issue with deploying to the EKS cluster (the golang code of the weatherapp-auth microservice crashes).  The code deploys successfully to kops.   There is some k8s dependency missing on the EKS cluster that is crashing the golang code when deployed as a pod on the EKS cluster. I tried many different versions of k8s on the EKS cluster but all of them crash. kops does not have this problem.
+
+### The auth microservice source code: (This is the code that crashes on EKS; but not on kops)
+This is the auth directory
+There are 2 docker auth containers and the backend mysql db container.
+The auth container listens on 8080 with a ClusterIP type service
+This is written in golang. This provides the authentication request to the backend mysql db container. The credentials are supplied from the UI micrservice below when the user attempts to log in. 
+
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/weatherapp_course11_gitlab_linode/source_files/weatherapp_3_0.0.1/auth/src/authdb$ ls -la
+total 16
+drwxrwxr-x 2 ubuntu ubuntu 4096 Oct 31 19:28 .
+drwxrwxr-x 4 ubuntu ubuntu 4096 Oct 31 19:28 ..
+-rw-rw-r-- 1 ubuntu ubuntu 1855 Oct 31 19:28 authdb.go
+-rw-rw-r-- 1 ubuntu ubuntu   48 Oct 31 19:28 go.mod
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/weatherapp_course11_gitlab_linode/source_files/weatherapp_3_0.0.1/auth/src/authdb$ cd ..
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/weatherapp_course11_gitlab_linode/source_files/weatherapp_3_0.0.1/auth/src$ cd main
+ubuntu@ip-172-31-21-52:~/course11_devops_startup_gitlab_repo/weatherapp_course11_gitlab_linode/source_files/weatherapp_3_0.0.1/auth/src/main$ ls -la
+total 24
+drwxrwxr-x 2 ubuntu ubuntu 4096 Oct 31 19:28 .
+drwxrwxr-x 4 ubuntu ubuntu 4096 Oct 31 19:28 ..
+-rw-rw-r-- 1 ubuntu ubuntu 1138 Oct 31 19:28 go.mod
+-rw-rw-r-- 1 ubuntu ubuntu 7039 Oct 31 19:28 go.sum
+-rw-rw-r-- 1 ubuntu ubuntu 3248 Oct 31 19:28 main.go
+
+### The UI microservice source code:
+This is the UI directory
+This is written in javascript and provides the web user interface in the browser. The helm chart will create a Loadbalancer type service on port 80 for the incoming requests (Values.yml file in the weather-ui UI helm chart; see below). The UI containers listen on port 3000
+
+
+
+### The weather microservice source code:
+This is the weather directory
+This is written in python.  The containers listen on port 5000 and is a ClusterIP type service.
+
+
+
+
+
+
+
+## helm charts:
+
+All three helm charts weatherapp-auth, weatherapp-ui and weatherapp-weather create 2 pods for each microservice on the kubernetes cluster. The pods are running the respective containers. The mysql db for the auth microservice uses a dependency chart within the auth helm chart and has a single pod.
+
+
+From the weather-auth Chart.yml file:
+dependencies:
+  - name: mysql
+  #the name mysql will be referenced in the deployment.yaml file when we define the env vars.
+    #version: 8.8.14
+    version: 11.1.3
+    #latest at the time of recording but may need to update this. Latest is now 11.1.3
+    #re-run the "helm dependency build" and remove the Charts.lock file and move charts folder to backup. A new
+    #charts folder will be created.
+    repository: https://charts.bitnami.com/bitnami
+
+
+The helm charts are created in the weatherapp_4_0.0.1 directory with the command:
+
+helm create weatherapp-auth weatherapp-ui and weatherapp-weather
+
+    The Chart.yml
+    values.yml and the
+    templates/deployment.yml have to be updated with the correct values
+
+In the weatherapp-auth directory must create a dependency chart for the mysql pod/container:
+helm dependency build
+This creates the subdirectory "charts" with the tarball for the mysql install.
+
+
+
+
+
+
+
+## The .gitlab-ci.yml file: 
+
+The objective is to use the helm charts above to deploy the microservices pods to the kops cluster2.
+This script is essentially the same as the EKS project for this weatherapp.
+Adding more build integrity tests to the BUILD stage (sonarqube and checkstyle for example) are futhre implementation tasks that  need to be done.
+
+The .gitlab-ci.yml file is in the root directory and has 5 stages below:
+  - build
+  - push
+  - deliver
+  - promote
+  - deploy
+
+
+Since the .gitlab-ci.yml file is in the root of the gitlab repo, all of the file directory paths in this file must be from the root.
+
+### IMPORTANT NOTE: the gitlab executor type (As noted in an earlier section)
+
+The gitlab executor for this project must be configured as "docker".   Once the project is configured with the "docker" executor in the Gitlab Web console, the executor must be registered with the gitlab runner (the runner is running as a sysctl service on the VPS linode instance and not a docker container on the VPS)
+
+NOTE: a "docker+machine" executor is not required and is being deprecated.
+
+The token generated by the above must be used in this fashion for the "docker" executor to be configured correctly: (note privileged mode must be used)
+
+sudo gitlab-runner register -n --url https://gitlab.linode.cloudnetworktesting.com   --token ******************* --name vps6.linode.cloudnetworktesitng.com --executor docker --docker-image "docker:24.0.5" --docker-privileged --docker-volumes "/certs/client"
+
+This will create an entry in the config.toml file that looks like this:
+[[runners]]
+  name = "vps6.linode.cloudnetworktesitng.com"
+  url = "https://gitlab.linode.cloudnetworktesting.com"
+  id = 6
+  token = "**************************"
+  token_obtained_at = 2024-11-01T22:25:05Z
+  token_expires_at = 0001-01-01T00:00:00Z
+  executor = "docker"
+  [runners.custom_build_dir]
+  [runners.cache]
+    MaxUploadedArchiveSize = 0
+    [runners.cache.s3]
+    [runners.cache.gcs]
+    [runners.cache.azure]
+  [runners.docker]
+    tls_verify = false
+    image = "docker:24.0.5"
+    privileged = true <<<<<<<<<<<<<<<<<<<<<<
+    disable_entrypoint_overwrite = false
+    oom_kill_disable = false
+    disable_cache = false
+    volumes = ["/certs/client", "/cache"]
+    shm_size = 0
+    network_mtu = 0
+
+The volume is important as well for the TLS cert directory.  24.0.5 is a stable version for the default.
+
+The .gitlab-ci.ymal BUILD stage should use the configuration below to ensure that the executor is run properly
+
+
+build:
+  #image: docker:latest
+  image: docker:24.0.5
+  stage: build
+
+  services:
+    - docker:24.0.5-dind
+
+  variables:
+    #DOCKER_HOST: tcp://172.21.0.2:2375/
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+
+  script:
+    - cd source_files/weatherapp_4_0.0.1/auth
+
+    - docker build -t $CI_REGISTRY_USER/weatherapp-auth4 . --no-cache
+
+    - cd ../UI
+    - docker build -t $CI_REGISTRY_USER/weatherapp-ui4 .
+
+    - cd ../weather
+    - docker build -t $CI_REGISTRY_USER/weatherapp-weather4 .
+  rules: 
+    - if: '$CI_COMMIT_TAG == null'
+
+FURTHER NOTES ON THIS:  Docker executor requirement on the project runner level. This is required, otherwise the gitlab script will not run and deploy properly.
+The main reason for using docker executor is to use docker containers to abstract all of the dependency requirements in using helm to deploy to an AWS EKS cluster.  It is best, for example, to spin up an alpine helm docker image and install aws cli on that then to try to run all of this natively on the runner itself. Note the runner is running on the VPS linode instance itself and that hosts all of the other ancillary applications of the devops ecosystem (like email, collaboration, VPS node monitoring, nextcloud and gitlab itself).  So if a shell executor for the gitlab runner,  for example, is used to run the gitlab pipeline the docker containers will spin up on the VPS and could tap VPS resources. The docker executor is using dind docker in docker service so that the docker containers for the app deployment itself (pipeline) are isolated from the underlying runner that is running on the VPS.
+
+
+
+
+
+### The BUILD stage:
+The BUILD stage builds the docker images from the source code and the Dockerfile in the source code 
+This is used primarily for the feature builds.   Check in a feature change in the EC2 source on a feature branch and push the code to the gitlab repo (remote)
+The BUILD stage is run for all branches without a git tag:
+  rules: 
+    - if: '$CI_COMMIT_TAG == null'
+
+Thus any push to main or feature branch will run the BUILD stage.   In reality, this stage would also include checkstyle and something like sonarqube for code integrity checks.
+If a  build has a git tag (CI_COMMIT_TAG is a git tag not a generic CI_COLMMIT_SHA commit hash), then there is no need to run the  BUILD stage because the build has been manually PROMOTEd (see PROMOTE stage below) as a candidate for DEPLOYment to the production namespace (default) on the k8s EKS cluster.
+
+
+### The PUSH stage:
+
+If the image has a git tag then this does not need to run again. Skip this and jump to the PROMOTE stage (see below)
+If the image does not have a git tag, it has not been promoted as a possible candidate to be deployed to the production default namespace cluster
+
+If the code push is a feature branch this is not run. This is only run for main branch pushes. There is no need to PUSH to docker hub for a feature branch.
+
+After the feature branch change is pushed the BUILD will run but then a MR (Merge request) must be created on gitlab console. Once the MR is created there is a test merge of the feature into the main branch with another run of the BUILD stage.
+
+Once this is complete a MERGE can be done from gitlab console and this will actually merge the feature----> main. At this point this image will trigger a PUSH stage (this stage) and push the image to docker hub so that it can be DELIVERed to the staging namespace on the EKS cluster. (see DELIVER stage below)
+
+An image that is delivered to the staging namespace can be futher tested by the QA organization.
+
+Depending on the results from QA testing (performance, integration, stress, soak, feature testing, system testing, etc) it can be PROMOTED with a git tag (see further below)
+
+### The DELIVER stage:
+
+This stage utilizes the helm charts described above. As such the docker in docker service that the stages in this gitlab pipeline utilize with the docker executor gitlab runner helps faclitate this. We can run an alpine/helm:latest docker image to run the helm commands necessary to deploy the microservices to the AWS EKS cluster. The apk package installer can be used to install aws-cli as well which is required for the helm install to the cluster. Note that the K8SCONFIG ENV variable in gitlab project for this is used and piped into the /tmp/.kube/config directory on the alpine docker container so that the container has full acccess to the current AWS EKS cluster.  NOTE that the AWS credentials have also been configured as ENV variables for this project on gitlab so that the gitlab2_eks user that was provisioned early on is used to deploy the microservices to the cloud. The gitlab2_eks user only has permissions to the staging and default namespaces and not kube-system for example, so that gitlab cannot be hijacked to alter the administration of the the cluster itself.
+
+This stage, like the PUSH stage, is only run for main build pushes. We never want a feature build that has not been propertly test merged and merged with main to be deployed to the staging server.  Using a merged feature to main build helps QA avoid wasting time testing unintegrated builds with extensive testing noted above.  The feature level unit testing should be done by developers themselves as integrated unit tests that have been approved by the QA team. 
+
+(A FACT stage can be created for feature builds to be deployed to the cluster if there is a requirement for QA to establish layers of FACT testing if the features committed in stages.  This is required if the unit testing by developers is sparse.  The MR can provide some sanity testing on this and QA can get involved in further validating the feature build MR into main prior to its integration into the main branch. If this is required, a separate DELIVER feature stage can be used to deploy the feature build that has been test merged into main (MR) to another namespace "feature" on the k8s cluster so that QA can do some integration and system based testing on the build prior to the approval to merge feature into main. This testing should be done because software integrity testing alone is not sufficient for testing any merge into main. If development is ok with reverting the commits and just using the staging environment for all of this that is also ok but that will require some more overhead in the process).
+
+
+At this point a kubectl get pod -n staging should show the pods and the myql pod on the cluster. NOTE there is an issue with EKS and the auth microservice causing it to crash. I don't see this issue with a kops based cluster.
+
+kubectl get svc -n staging will show the loadbalancer url and the site should come up in a browser.
+
+
+
+### PROMOTE stage:
+
+Code promotion will be done via git tagging.  This will tag the commits that are candidates for promotion to production deployment (default namespace on the EKS cluster)
+
+This stage requires that git be installed. The container will need to use git rev-list to get the commit hash in the git log that has this tag. This is referred to as the TAGGED_HASH in this part of the script.  For example: The CI_COMMIT_TAG is the 1.0.0 assigned tag to the commit.  TAGGED_HASH will be the git rev-list -n 1 $CI_COMMIT_TAG and will identify the docker image that has already been pushed to docker hub from a previous stage that is now marked for promotioin to deploy to the production (default) namespace on the EKS clsuter.
+
+This image is pulled and then docker tagged with the CI_COMMIT_TAG and repushed back out to docker hub resulting in the tagged docker image being on docker hub so that it can be easily identified as a candiate and easily helm deployed to the cluster by the DEPLOY stage (see below)
+
+NOTE that this PROMOTE stage is only run for builds with a CI_COMMIT_TAG, for example 1.0.0 as indicated in the example above....
+
+
+Once the merge is complete into main from the DELIVER stage, pull the code from gitlab repo to the EC2 controller repo and do a git log to get the feature into main merge COMMIT hash.
+
+For example:
+
+$ git log
+commit d7ac44fed7acf0a947b8f51d21efc9675172e7e2 (HEAD -> main, origin/main)  <<<< COMMIT HASH
+Merge: 0ce6e58 210dcc6
+Author: dmastrop <davemastropolo@linode.cloudnetworktesting.com>
+Date:   Wed Nov 6 02:47:10 2024 +0000
+
+    Merge branch 'feature-6' into 'main'
+    
+    feature-6
+    
+    See merge request dmastrop/course11_port_of_3tier_weatherapp_to_gitlab_linode!5
+
+commit 210dcc613d575188d89ad43f77881e8a83890254 (origin/feature-6, feature-6)
+Author: Ubuntu <ubuntu@ip-172-31-21-52.ec2.internal>
+Date:   Wed Nov 6 02:42:27 2024 +0000
+
+    feature-6
+
+
+Tag the COMMIT HASH above with the following command:
+
+git tag -a 1.0.21 d7ac44fed7acf0a947b8f51d21efc9675172e7e2 -m “Version 1.0.21” 
+
+
+Then push the tag to gitlab and this will start run the PROMOTE stage which will push the 1.0.21 tagged image to docker hub ready for deployment to the production namespace on the K8s EKS cluster.
+
+
+
+
+### DEPLOY stage:
+
+This stage is based upon many approvals in real life scenarios.  This is a deployment to product (k8s namespace default). This will be a manual deployment that is not auto-triggered based upon a branch push (unlike the DELIVER to staging stage above)
+Similar to the DELIVER stage aws-cli must be installed and an alpine/helm:lastest docker build will be used. Similarlly the K8SCONFIG ENV variable is used as well so that the docker container has access to the cluster via the helm command.
+This stage, like the PROMOTE stage is only allowed to run if there is a CI_COMMIT_TAG present on the build.
+
+At this point kubectl get pods (default ns) should show the pods and 
+kubectl get svc (default ns) should have the AWS url to the production deployment and it should work in the browser.
+
+
+
