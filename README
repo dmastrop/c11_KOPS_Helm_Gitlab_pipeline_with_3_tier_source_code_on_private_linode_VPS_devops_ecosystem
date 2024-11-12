@@ -552,12 +552,12 @@ NOTE: do not specify the --namespace flag because the gitlab_cluster2-config con
 
 The command is below:
 
-$(kubectl config view -o jsonpath='{.clusters[0].name}') --user=gitlab_cluster2 --kubeconfig=gitlab_cluster2-config
+$kubectl config set-context cluster2.***************.com --cluster=$(kubectl config view -o jsonpath='{.clusters[0].name}') --user=gitlab_cluster2 --kubeconfig=gitlab_cluster2-config
 Context "cluster2.********************.com" created.
 
 
 
-### Step19: set the use context to cluster2.holinessinloveofchrist.com and use the gitlab_cluster2-config kubeconfig file:
+### Step19: set the use context to cluster2.*****************.com and use the gitlab_cluster2-config kubeconfig file:
 
 kubectl config use-context cluster2.**************.com --kubeconfig=gitlab_cluster2-config
 
@@ -654,7 +654,7 @@ KUBECONFIG_KOPS (this will have the kops gitlab_cluster2 user kube config file i
 
 The base 64 conversion is done with this command:
 
-cat gitlab_cluster2_7_18-config | base64 | tr -d '\n' && echo
+cat gitlab_cluster2-config | base64 | tr -d '\n' && echo
 
 The output needs to be pasted in KUBECONFIG_KOPS each time a new cluster is started and used with the gitlab project pipeline.
 The gitlab_cluster2 cert is unique for the api master node of the cluster.
