@@ -6,4 +6,7 @@ gitlab_kops_cert_user2_cluster2
 gitlab_kops_cert_user3_cluster2
 gitlab_cluster2_certs
 gitlab_cluster2_certs2
+gitlab_cluster2_certs3
+gitlab_cluster2_certs4
+gitlab_cluster2_certs5
 base64
