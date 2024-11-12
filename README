@@ -22,7 +22,7 @@ Change the minSize to 2 and the maxSize to 3
 #Please edit the object below. Lines beginning with a '#' will be ignored,
 #and an empty file will abort the edit. If an error occurs while saving this file will be
 #opened with the relevant failures.
-#
+
 apiVersion: kops.k8s.io/v1alpha2
 kind: InstanceGroup
 metadata:
@@ -68,8 +68,43 @@ i-0ce3ed1cbe2e452d2   Ready    node            141m   v1.26.15
 i-0ef22f1974264342e   Ready    node            86s    v1.26.15
 i-0f6b21d0dc92f229f   Ready    control-plane   144m   v1.26.15
 
-At this point both the staging (DELIVER stage) and the production (DEPLOY stage) should be successfully launched and run at the same time in their respective namespaces staging and default onl the k8s cluster.
+At this point both the staging (DELIVER stage) and the production (DEPLOY stage) should be successfully launched and run at the same time in their respective namespaces staging and default on the k8s cluster.
 
 
 
 
+
+
+
+## High level summary:
+
+This uses a gitlab pipeline to deploy the 3 tier microservice app using helm to a KOPS cluster. The gitlab pipeline uses helm charts to deploy the 3 tier microservice app to a KOPS cluster.  The README has the administrative tasks required. A notable difference between deploying to AWS EKS cluster (see other project) vs. a KOPS cluster is the requirement for CA signing of the kube config file in KOPS as well as generating a CSR request to the K8s API server (master) and also generating a client side private key.  A new kube config file has to be created from these components manually and it is quite involved. The process is detailed below in this README file.  The user for the KOPS cluster it gitlab_cluster2.   Once the kube config file is created for the gitlab_cluster2 user, it has to be converted to base64. At this point it can then be pasted into the ENV var KUBECONFIG_KOPS in the gitlab kops pipeline project.  The kubeconfig file is the only credential needed for this gitlab_cluster2 user to provision the kops cluster (note cicd role and policy permissions have to be configured just like with the AWS EKS cluster; this is detailed below as well).  With the AWS EKS cluster the standard kube ocnfig could be used but AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have to also be added to the ENV variables in the gitlab project.  KOPS does not need AWS credentials. (They are only required from the EC2 controller when creating the kops cluster infra itself on AWS)
+
+IMPORTANT NOTE: this is using the private linode VPS devops ecosystem and gitlab running in that environment in a docker container.  It is not using a  public gitlab
+The gitlab runner is running as a systemctl service on the VPS and not as a docker container on the VPS
+The gitlab app is running as a docker container on the VPS
+In order to facilitate registration of gitlab runner executors with the gitlab iptables and traefik routers have to be configured to allow communcaiton from the VPS ip (gitalb runner) to the gitlab docker container ip address space. This has all be configured as part of the VPS project infrastructure (separate github project repository) using ansible from the EC2 controller.
+
+To keep the projects separate for instruction purposes, I created separate docker repos for the docker images on docker hub.  The AWS EKS project has index "3" images whereas this kops project has docker images with the "4" index.
+
+
+## github and gitlab repository design:
+
+The same type of design that was used with the AWS EKS project can be used with this kops project.
+
+The local VSCode on mac is used just for basic editing of README and push to github repo.
+
+The github repo is just for public publishing and documentation purposes of this project
+
+The EC2 ansible controller has the active current code and has a remote git repo configured to the gitlab private repository on the linode VPS devops ecosystem. This is the remote origin that activates the gitlab pipeline.
+
+The EC2 controller also has a remote origin2 to the github repo above for synching up the latest code changes to github for public publication purposes
+
+NOTE that a merge on gitlab requires a pull from gitlab repo to EC2 to synch main up and then a push from EC2 main to github main and pull to VSCode on mac. The same can be done to synch the git tags created on the EC2 controller. They can be pushed to github and then pulled to the local VSCode on mac.
+
+There is no need to synch up the feature branches on EC2.  They are removed on gitlab repo once the pipeline completes and there is no need for them on the github or local VS Code on mac.
+
+
+
+
+## Implementation details for the kops gitlab_cluster2 user that is used by gitlab to provision the kops cluster with the app by using the gitlab pipeline:
