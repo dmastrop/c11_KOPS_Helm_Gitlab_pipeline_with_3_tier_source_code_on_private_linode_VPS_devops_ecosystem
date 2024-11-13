@@ -929,7 +929,7 @@ kubectl get svc (default ns) should have the AWS url to the production deploymen
 ### Code integrity checking: 
 
 
-### start with basic SAST gitlab:
+#### start with basic SAST gitlab:
 
 the changes to the .gitlab.ci.yml file are the following
 
@@ -961,4 +961,4 @@ The yml file is: SAST.gitlab-ci.yml
 Once the configuration is done, a new stage "test" is added to the pipeline and this will create an artifact with basic code checks.  The basis SAST is capable of testing the javascript and go and python based microservices for basic security issues. The artifact report that is created is found in the pipeline section and on right side for download. It is in .json format.
 
 
-### Sonarqube integration:
+#### Sonarqube integration:
