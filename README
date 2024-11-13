@@ -924,5 +924,39 @@ This stage, like the PROMOTE stage is only allowed to run if there is a CI_COMMI
 At this point kubectl get pods (default ns) should show the pods and 
 kubectl get svc (default ns) should have the AWS url to the production deployment and it should work in the browser.
 
+### Code integrity checking: 
+
+#### start with basic SAST gitlab:
+
+the changes to the .gitlab.ci.yml file are the following
+
+add stage test
+add the following:
+
+# SAST stuff:
+sast:
+  stage: test
+include:
+#- template: Auto-DevOps.gitlab-ci.yml
+- template: SAST.gitlab-ci.yml
+
+The template yml files are located in the following directories (the gitlab is installed in docker container on the VPS so the path is long):
+
+[root@vps gitlab]# find / -name Auto-DevOps.gitlab-ci.yml -print
+/var/lib/docker/overlay2/c78d3b4f0c30facec48952d119620e9fd51a6f1886d2f0bb964c4ad813e47b12/merged/opt/gitlab/embedded/service/gitlab-rails/lib/gitlab/ci/templates/Auto-DevOps.gitlab-ci.yml
+/var/lib/docker/overlay2/3a850df2875bf91a2d7562d8fd43a6c50fd5241686c410bf710a9e2967ee40a7/diff/opt/gitlab/embedded/service/gitlab-rails/lib/gitlab/ci/templates/Auto-DevOps.gitlab-ci.yml
+
+The file that is to be used is under the Security directory which redirects to the Jobs directory:
+
+/var/lib/docker/overlay2/c78d3b4f0c30facec48952d119620e9fd51a6f1886d2f0bb964c4ad813e47b12/merged/opt/gitlab/embedded/service/gitlab-rails/lib/gitlab/ci/templates/Jobs
+
+The yml file is: SAST.gitlab-ci.yml
+
+(note this is poorly documented by gitlab documentation)
+
+Once the configuration is done, a new stage "test" is added to the pipeline and this will create an artifact with basic code checks.  The basis SAST is capable of testing the javascript and go and python based microservices for basic security issues. The artifact report that is created is found in the pipeline section and on right side for download. It is in .json format.
+
+#### Sonarqube integration:
+
 
 
