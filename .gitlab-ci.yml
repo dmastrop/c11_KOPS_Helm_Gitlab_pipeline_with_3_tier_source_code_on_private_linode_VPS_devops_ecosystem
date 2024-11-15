@@ -29,8 +29,9 @@ stages:
   #- cleanup
 
   # added sonarqube for the go auth microservice, and the js UI and the python weatherapp api microservice
-  #- sonarqube
+  
   - sonarqube1
+  - sonarqube
     
   ## original core block:
   - build
