@@ -365,7 +365,7 @@ sonarqube1:
   image:
     #name: sonarsource/sonar-scanner-cli:latest
     # name: sonarsource/sonar-scanner-cli:4.7
-    name: sonarsource/sonar-scanner-cli:10.0
+    name: sonarsource/sonar-scanner-cli:4.8.1
     # entrypoint: [""]
   script: 
     - cd source_files/weatherapp_4_0.0.1
