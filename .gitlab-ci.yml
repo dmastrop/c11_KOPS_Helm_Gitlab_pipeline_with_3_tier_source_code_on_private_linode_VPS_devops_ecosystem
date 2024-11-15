@@ -344,13 +344,13 @@ sonarqube:
       #
 # Sonarqube native cli. This is working much better but there is an incompatiblity with the SonarJS plugin in the older version
 # of the sonarqube EC2 instance and the latest sonar-scanner-cli. Try using older version of sonar-scanner-cli.
-# test2
+# testg
 sonarqube1:
   stage: sonarqube1
   image:
     #name: sonarsource/sonar-scanner-cli:latest
     name: sonarsource/sonar-scanner-cli:5.0.1
-    entrypoint: [""]
+    # entrypoint: [""]
   script: 
     - cd source_files/weatherapp_4_0.0.1
     # - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b
