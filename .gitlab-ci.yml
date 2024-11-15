@@ -330,7 +330,7 @@ sonarqube:
   stage: sonarqube
   image:
     name: docker:latest
-   services:
+  services:
     - docker:dind
 
   script:
