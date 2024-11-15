@@ -345,7 +345,7 @@ sonarqube:
 sonarqube1:
   stage: sonarqube1
   image:
-    name: sonarsource/sonar-scaller-cli:latest
+    name: sonarsource/sonar-scanner-cli:latest
     entrypoint: [""]
   script: 
     - cd source_files/weatherapp_4_0.0.1
