@@ -327,7 +327,8 @@ include:
 - template: SAST.gitlab-ci.yml
 
 
-# Sonarqube docker in docker
+# Sonarqube docker in docker. Trouble getting this working as the SONAR_PROJECT_KEY is not recognized and root project folder not specified.  I did place the sonar-properties file in the root of the project but without a root project path it will not see it.
+# Not sure why passiung argument and env variable with -e (see below) is not working.
 sonarqube:
   stage: sonarqube
   image:
@@ -341,11 +342,13 @@ sonarqube:
       #docker run -v ${CI_PROJECT_DIR}:/app -e SONAR_HOST_URL="http://sonar.cloudnetworktesting.com" -e SONAR_TOKEN="608944287a2949ebde4184444874aaf1d8ac513b" sonarsource/sonar-scanner-cli:latest
       #
       #
-# Sonarqube native cli
+# Sonarqube native cli. This is working much better but there is an incompatiblity with the SonarJS plugin in the older version
+# of the sonarqube EC2 instance and the latest sonar-scanner-cli. Try using older version of sonar-scanner-cli.
 sonarqube1:
   stage: sonarqube1
   image:
-    name: sonarsource/sonar-scanner-cli:latest
+    #name: sonarsource/sonar-scanner-cli:latest
+    name: sonarsource/sonar-scanner-cli:5.0.1
     entrypoint: [""]
   script: 
     - cd source_files/weatherapp_4_0.0.1
