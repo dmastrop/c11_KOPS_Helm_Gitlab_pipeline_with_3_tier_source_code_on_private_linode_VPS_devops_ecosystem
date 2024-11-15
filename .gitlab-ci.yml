@@ -353,4 +353,4 @@ sonarqube1:
     entrypoint: [""]
   script: 
     - cd source_files/weatherapp_4_0.0.1
-    - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b
+    - sonar-scanner -X -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b
