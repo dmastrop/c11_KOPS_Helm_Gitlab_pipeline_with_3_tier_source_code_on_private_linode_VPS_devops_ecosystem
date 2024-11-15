@@ -29,7 +29,8 @@ stages:
   #- cleanup
 
   # added sonarqube for the go auth microservice, and the js UI and the python weatherapp api microservice
-  - sonarqube
+  #- sonarqube
+  - sonarqube1
     
   ## original core block:
   - build
@@ -325,7 +326,7 @@ include:
 - template: SAST.gitlab-ci.yml
 
 
-# Sonarqube
+# Sonarqube docker in docker
 sonarqube:
   stage: sonarqube
   image:
@@ -337,3 +338,18 @@ sonarqube:
     - |
       docker run -v ${CI_PROJECT_DIR}/source_files/weatherapp_4_0.0.1:/app -e SONAR_PROJECT_KEY="course11_sonarqube_kops_weatherapp_VPS" -e SONAR_HOST_URL="http://sonar.cloudnetworktesting.com" -e SONAR_TOKEN="608944287a2949ebde4184444874aaf1d8ac513b" sonarsource/sonar-scanner-cli:latest
       #docker run -v ${CI_PROJECT_DIR}:/app -e SONAR_HOST_URL="http://sonar.cloudnetworktesting.com" -e SONAR_TOKEN="608944287a2949ebde4184444874aaf1d8ac513b" sonarsource/sonar-scanner-cli:latest
+      #
+      #
+# Sonarqube native cli
+sonarqube1:
+  stage: sonarqube1
+  image:
+    name: sonarsource/sonar-scaller-cli:latest
+    entrypoint: [""]
+  script: 
+    -  cd source_files/weatherapp_4_0.0.1
+    - sonar-scanner \
+  -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS \
+  -Dsonar.sources=. \
+  -Dsonar.host.url=http://sonar.cloudnetworktesting.com \
+  -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b
