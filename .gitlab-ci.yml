@@ -344,7 +344,7 @@ sonarqube:
       #
 # Sonarqube native cli. This is working much better but there is an incompatiblity with the SonarJS plugin in the older version
 # of the sonarqube EC2 instance and the latest sonar-scanner-cli. Try using older version of sonar-scanner-cli.
-# test
+# test2
 sonarqube1:
   stage: sonarqube1
   image:
