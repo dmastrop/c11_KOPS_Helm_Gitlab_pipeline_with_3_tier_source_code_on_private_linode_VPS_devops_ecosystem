@@ -29,7 +29,7 @@ stages:
   #- cleanup
 
   # added sonarqube for the go auth microservice, and the js UI and the python weatherapp api microservice
-  
+  - sonarqube2
   - sonarqube1
   #- sonarqube
     
@@ -371,4 +371,15 @@ sonarqube1:
     - cd source_files/weatherapp_4_0.0.1
     # - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b
     #- sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
-    - sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b -Dsonar.qualitygate.timeout=300 
+    - sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b -Dsonar.qualitygate.timeout=300
+
+sonarqube2:
+  stage: sonarqube2
+    # this is with the new sonarqube 9.9.7 server. Latest should work with this server
+  image:
+    name: sonarsource/sonar-scanner-cli:latest 
+  script:
+    - cd source_files/weatherapp_4_0.0.1
+    - sonar-scanner \
+  -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS2 -Dsonar.sources=. Dsonar.host.url=http://sonar1.cloudnetworktesting.com -Dsonar.login=sqp_a28f242d9ec6d241874008c4ecd378bdb519a0e2
+
