@@ -943,7 +943,7 @@ the changes to the .gitlab.ci.yml file are the following
 add stage test
 add the following:
 
-# SAST stuff:
+#SAST stuff:
 sast:
   stage: test
 include:
@@ -979,9 +979,10 @@ The sonarqube1 stage below is for the older sonarqube server and the sonarqube2 
 
 NOTE in sonarqube1 the first 2 are commented out and do not work. The last one works but does not support the QG checking. The sonarqube2 stage below does support QG.
 
+Make sure to use gitlab CICD variables for the token so that they are not exposed
 
-sonarqube1:
-  stage: sonarqube1
+sonarqube_8.3:
+  stage: sonarqube_8.3
   image:
     #name: sonarsource/sonar-scanner-cli:latest
     # name: sonarsource/sonar-scanner-cli:4.7
@@ -989,17 +990,18 @@ sonarqube1:
     # entrypoint: [""]
   script: 
     - cd source_files/weatherapp_4_0.0.1
-    # - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=******************
-    #- sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=******************** -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
-    - sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=*********** -Dsonar.qualitygate.timeout=300
+    # - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=$SONAR_TOKEN_8_3
+    #- sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=$SONAR_TOKEN_8_3 -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+    - sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=$SONAR_TOKEN_8_3 -Dsonar.qualitygate.timeout=300
 
-sonarqube2:
-  stage: sonarqube2
+sonarqube_9.9.7:
+  stage: sonarqube_9.9.7
     # this is with the new sonarqube 9.9.7 server. Latest should work with this server. This does work now. And also the QG chcking is performed as well now with the Dsonar.qualitygate.wait=true which is not supported in older sonar-scanner code above.
   image:
     name: sonarsource/sonar-scanner-cli:latest 
   script:
     - cd source_files/weatherapp_4_0.0.1
-    - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS2 -Dsonar.sources=. -Dsonar.host.url=http://sonar1.cloudnetworktesting.com -Dsonar.login=s**************** -Dsonar.qualitygate.timeout=300 -Dsonar.qualitygate.wait=true
+    - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS2 -Dsonar.sources=. -Dsonar.host.url=http://sonar1.cloudnetworktesting.com -Dsonar.login=$SONAR_TOKEN_9_9_7 -Dsonar.qualitygate.timeout=300 -Dsonar.qualitygate.wait=true
+
 
 
