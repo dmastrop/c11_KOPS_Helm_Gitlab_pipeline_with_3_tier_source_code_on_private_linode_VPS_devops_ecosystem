@@ -366,9 +366,9 @@ sonarqube_8.3:
     # entrypoint: [""]
   script: 
     - cd source_files/weatherapp_4_0.0.1
-    # - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=$SONAR_TOKEN_8_3
-    #- sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=$SONAR_TOKEN_8_3 -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
-    - sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=$SONAR_TOKEN_8_3 -Dsonar.qualitygate.timeout=300
+    # - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=$SONAR_HOST -Dsonar.login=$SONAR_TOKEN_8_3
+    #- sonar-scanner -Dsonar.sources=. -Dsonar.host.url=$SONAR_HOST -Dsonar.login=$SONAR_TOKEN_8_3 -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+    - sonar-scanner -Dsonar.sources=. -Dsonar.host.url=$SONAR_HOST -Dsonar.login=$SONAR_TOKEN_8_3 -Dsonar.qualitygate.timeout=300
 
 sonarqube_9.9.7:
   stage: sonarqube_9.9.7
@@ -377,5 +377,5 @@ sonarqube_9.9.7:
     name: sonarsource/sonar-scanner-cli:latest 
   script:
     - cd source_files/weatherapp_4_0.0.1
-    - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS2 -Dsonar.sources=. -Dsonar.host.url=http://sonar1.cloudnetworktesting.com -Dsonar.login=$SONAR_TOKEN_9_9_7 -Dsonar.qualitygate.timeout=300 -Dsonar.qualitygate.wait=true
+    - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS2 -Dsonar.sources=. -Dsonar.host.url=$SONAR1_HOST -Dsonar.login=$SONAR_TOKEN_9_9_7 -Dsonar.qualitygate.timeout=300 -Dsonar.qualitygate.wait=true
 
