@@ -28,6 +28,11 @@ stages:
   #- performance
   #- cleanup
 
+  # added sonarqube for the go auth microservice, and the js UI and the python weatherapp api microservice
+  - sonarqube2
+  - sonarqube1
+  #- sonarqube
+    
   ## original core block:
   - build
   - push
@@ -320,4 +325,60 @@ sast:
 include:
 #- template: Auto-DevOps.gitlab-ci.yml
 - template: SAST.gitlab-ci.yml
+
+
+
+
+
+
+# Sonarqube docker in docker. Trouble getting this working as the SONAR_PROJECT_KEY is not recognized and root project folder not specified.  I did place the sonar-properties file in the root of the project but without a root project path it will not see it.
+# Not sure why passiung argument and env variable with -e (see below) is not working.
+
+#sonarqube:
+#  stage: sonarqube
+#  image:
+#    name: docker:latest
+#  services:
+#    - docker:dind
+#
+#  script:
+#    - |
+#      docker run -v ${CI_PROJECT_DIR}/source_files/weatherapp_4_0.0.1:/app -e SONAR_PROJECT_KEY="course11_sonarqube_kops_weatherapp_VPS" -e SONAR_HOST_URL="http://sonar.cloudnetworktesting.com" -e SONAR_TOKEN="608944287a2949ebde4184444874aaf1d8ac513b" sonarsource/sonar-scanner-cli:latest
+      #docker run -v ${CI_PROJECT_DIR}:/app -e SONAR_HOST_URL="http://sonar.cloudnetworktesting.com" -e SONAR_TOKEN="608944287a2949ebde4184444874aaf1d8ac513b" sonarsource/sonar-scanner-cli:latest
+  
+
+
+
+
+
+  
+# Sonarqube native cli. This is working much better but there is an incompatiblity with the SonarJS plugin in the older version
+# of the sonarqube EC2 instance and the latest sonar-scanner-cli. Try using older version of sonar-scanner-cli.
+# 5.1 did not work but 4.7 does work and so does 4.8.   But the older cli does not support QG checking.   Had to create new sonarqube server with 9.9.7 code (new EC2 instance). See sonarqube2 stage further below. This one is doing a QG check and will fail if there is a QG failure, but unfortunately the new sonarqube server only apply QG criteria to newly committed code and no longer does it on overall code. So it is working now but empirically my new code has no bugs so there is no failure. There are 2 bugs in overall code but the QG cannot be applied to that.
+#
+#
+#
+#
+#
+sonarqube1:
+  stage: sonarqube1
+  image:
+    #name: sonarsource/sonar-scanner-cli:latest
+    # name: sonarsource/sonar-scanner-cli:4.7
+    name: sonarsource/sonar-scanner-cli:4.8.1
+    # entrypoint: [""]
+  script: 
+    - cd source_files/weatherapp_4_0.0.1
+    # - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b
+    #- sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+    - sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=608944287a2949ebde4184444874aaf1d8ac513b -Dsonar.qualitygate.timeout=300
+
+sonarqube2:
+  stage: sonarqube2
+    # this is with the new sonarqube 9.9.7 server. Latest should work with this server. This does work now. And also the QG chcking is performed as well now with the Dsonar.qualitygate.wait=true which is not supported in older sonar-scanner code above.
+  image:
+    name: sonarsource/sonar-scanner-cli:latest 
+  script:
+    - cd source_files/weatherapp_4_0.0.1
+    - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS2 -Dsonar.sources=. -Dsonar.host.url=http://sonar1.cloudnetworktesting.com -Dsonar.login=sqp_a28f242d9ec6d241874008c4ecd378bdb519a0e2 -Dsonar.qualitygate.timeout=300 -Dsonar.qualitygate.wait=true
 
