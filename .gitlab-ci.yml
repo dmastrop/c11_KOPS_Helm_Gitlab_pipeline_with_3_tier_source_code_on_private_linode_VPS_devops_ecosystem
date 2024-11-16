@@ -377,5 +377,5 @@ sonarqube_9.9.7:
     name: sonarsource/sonar-scanner-cli:latest 
   script:
     - cd source_files/weatherapp_4_0.0.1
-    - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS2 -Dsonar.sources=. -Dsonar.host.url=http://sonar1.cloudnetworktesting.com -Dsonar.login=sqp_a28f242d9ec6d241874008c4ecd378bdb519a0e2 -Dsonar.qualitygate.timeout=300 -Dsonar.qualitygate.wait=true
+    - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS2 -Dsonar.sources=. -Dsonar.host.url=http://sonar1.cloudnetworktesting.com -Dsonar.login=SONAR_TOKEN_9_9_7 -Dsonar.qualitygate.timeout=300 -Dsonar.qualitygate.wait=true
 
