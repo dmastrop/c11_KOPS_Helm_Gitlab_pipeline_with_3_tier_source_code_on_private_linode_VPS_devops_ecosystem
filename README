@@ -958,5 +958,38 @@ Once the configuration is done, a new stage "test" is added to the pipeline and 
 
 #### Sonarqube integration:
 
+See the .gitlab-ci.yml stages below. I decided to use sonarqube native CLI running in a docker container rather than dind (docker in docker approach). The dind approach had trouble finding the sonar-project.properties and the defined root project directory was not getting specified. I tried to override with explicity -e environmental tags in the docker run command but it still did not run properly.
+
+The native CLI running in the sonarqube cli docker image ran fine.
+The issue was that the sonarqube server was old (8.8.3) and this was causing a javascript plugin exeception when using the :latest docker image for the sonarqube cli image.  The older sonarqube cli images (4.7 and 4.8) resolve this issue but the older cli does not support QG (quality gate) checking natively in the CLI as a CLI flag.  
+
+I created a new sonarqube server using a bash script on 9.9.7 release and this is compatible with the :latest sonarqube CLI docker image that supports native QG checking and failure (if QG fails it will stop the gitlab pipeline which is what I need)
+
+The sonarqube1 stage below is for the older sonarqube server and the sonarqube2 stage below is for the newer sonarqube with native QG support 
+
+NOTE in sonarqube1 the first 2 are commented out and do not work. The last one works but does not support the QG checking. The sonarqube2 stage below does support QG.
+
+
+sonarqube1:
+  stage: sonarqube1
+  image:
+    #name: sonarsource/sonar-scanner-cli:latest
+    # name: sonarsource/sonar-scanner-cli:4.7
+    name: sonarsource/sonar-scanner-cli:4.8.1
+    # entrypoint: [""]
+  script: 
+    - cd source_files/weatherapp_4_0.0.1
+    # - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=******************
+    #- sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=******************** -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+    - sonar-scanner -Dsonar.sources=. -Dsonar.host.url=http://sonar.cloudnetworktesting.com -Dsonar.login=*********** -Dsonar.qualitygate.timeout=300
+
+sonarqube2:
+  stage: sonarqube2
+    # this is with the new sonarqube 9.9.7 server. Latest should work with this server. This does work now. And also the QG chcking is performed as well now with the Dsonar.qualitygate.wait=true which is not supported in older sonar-scanner code above.
+  image:
+    name: sonarsource/sonar-scanner-cli:latest 
+  script:
+    - cd source_files/weatherapp_4_0.0.1
+    - sonar-scanner -Dsonar.projectKey=course11_sonarqube_kops_weatherapp_VPS2 -Dsonar.sources=. -Dsonar.host.url=http://sonar1.cloudnetworktesting.com -Dsonar.login=s**************** -Dsonar.qualitygate.timeout=300 -Dsonar.qualitygate.wait=true
 
 
