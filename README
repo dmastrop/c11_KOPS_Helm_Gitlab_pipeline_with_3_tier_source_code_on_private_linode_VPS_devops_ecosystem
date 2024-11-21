@@ -1005,3 +1005,12 @@ sonarqube_9.9.7:
 
 
 
+
+
+
+## Jira integration with the gitlab docker instance
+
+This is both for gitlab to jira (git commit -m "<USE_JIRA_ISSUE_ID>) with the Gitlab Jira project level "Jira" app and also for Jira communication with Gitlab with the Gitlab for Jira app installed on Jira. THe later allows the gitlab repo, etc to be integrated with  a Jira project.  This requires several setup steps including OAuth configured on gitlab so that Jira can sign into gitlab with api admin priveleges.   The gitlab groups are visible in Jira at this point and the repos are available as well.
+
+Note that for Jira to my gitlab instance it uses gitlab.com as an intermediate proxy, so incoming gitlab.com address blocks must be added to Traefik reverse proxy on the VPS for the gitlab HTTP router.  This was done by editing the .env in the ansible playbook for the gitlab role and running the ansible-playbook from the EC2 controller to push the changes to the VPS gitlab configuration at /root/services/gitlab.  The communication is working well gitlab to Jira and Jira to gitlab.
+
