@@ -1014,3 +1014,8 @@ This is both for gitlab to jira (git commit -m "<USE_JIRA_ISSUE_ID>) with the Gi
 
 Note that for Jira to my gitlab instance it uses gitlab.com as an intermediate proxy, so incoming gitlab.com address blocks must be added to Traefik reverse proxy on the VPS for the gitlab HTTP router.  This was done by editing the .env in the ansible playbook for the gitlab role and running the ansible-playbook from the EC2 controller to push the changes to the VPS gitlab configuration at /root/services/gitlab.  The communication is working well gitlab to Jira and Jira to gitlab.
 
+
+
+
+
+## Jenkins integration with gitlab docker instance
