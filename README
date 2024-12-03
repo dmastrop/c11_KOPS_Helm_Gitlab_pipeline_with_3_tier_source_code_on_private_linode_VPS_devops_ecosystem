@@ -1019,3 +1019,7 @@ Note that for Jira to my gitlab instance it uses gitlab.com as an intermediate p
 
 
 ## Jenkins integration with gitlab docker instance
+
+### Introduction:
+This is the installation of a gitlab plugin on jenkins so that all of the jenkins pipelines can be run using gitlab. Since gitlab is already integrated into this VPS devops ecosystem this will expand its applicablity to all of my jenkins pipelines. I will be using another multi-tier microservice kubernetes deployment using jenkins rather that gitlab, but gitlab with the jenkins plugin will be able to kick off the pipeline via a push to gitlab repository source code. That will then connect to jenkins and run the pipeline script.
+The jenkins setup also uses the Sonarqube server above as well and Nexus server for maven source code, etc.
