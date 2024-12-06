@@ -1058,15 +1058,24 @@ d. The actual Jenkinsfile.stage will no longer be used even though it is still i
 
 
 
-First project ((c8/project18):
+### First project ((c8/project18):
+
+First test this with just Jenkins, then implement the gitlab relay to Jenkins as described in the introductino above. This is all working very well. The update from Jenkins pipeline to the gitlab pipeline is also working well.
+
 The jenkins setup also uses the Sonarqube server (sonar1 has to be used because jenkins controller and agent were upgraded to jdk17 and original sonar server is running jdk11) above as well and Nexus server for .war artifact repository for deployment.  The source code goes through mvn build and then mvn test (maven test), checkstyle and then sonar1 testing prior to upload to the Nexus server repository.  From the Nexus repo, the .war artifact is then deployed to an ubuntu app01 staging server for further QA testing.  (once approved there is a manual pipeline that uses BUILD and TIME of the staging image to deploy to the app01 production ubuntu server).  Note that the app01 servers are deployed with ansible (in the deployment stage of the Jenkinsfile script). The yml files first install tomcat8 on the app server and then deploy the artifact from the Nexus server.   The .war artifact can then be tested by QA.   
 
 
 
-Second project (c8/project14):
+### Second project (c8/project14):
+
+This is the non-Jenkins version of project20 below. The Jenkins pipeline version is project20 below.
 
 
 
-Thrid project (c8/project20):
+### Thrid project (c8/project20):
 
 Kubernetes deployment using Jenkins and jenkins agent.
+
+First test manually on the kops-project14-EC2 jenkins agent from the terminal (essentially project 14). 
+Once the code is tested then implement the Jenkins pipeline test. 
+Once that is tested then can implement the gitlab VPS pipeline relay to the Jenkins pipeline. So the approach is very simmilar to that of project18 above.
