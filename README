@@ -1018,9 +1018,14 @@ Note that for Jira to my gitlab instance it uses gitlab.com as an intermediate p
 
 
 
-## Jenkins integration with gitlab docker instance
+## Jenkins integration with gitlab VPS docker instance (gitlab to Jenkins relay)
 
 ### Introduction:
+
+This is very useful because i have a lot of Jenkinsfile pipelines rather than gitlab. This allow centralized deployment of the pipelines from the gitlab interface on the VPS devops ecosystem.
+
+Note that the Jenkins server and Sonarqube server and Nexus server are external to the VPS environment so Security Groups in AWS must be configured accordingly for communication with the gitlab docker instance on the VPS. Also as noted below, the traefik reverse proxy on the VPS has to whitelist the Jenkins controller server ip for this to work.
+
 There is an installation of a gitlab plugin on jenkins so that all of the jenkins pipelines can be run using gitlab. Since gitlab is already integrated into this VPS devops ecosystem this will expand its applicablity to all of my jenkins pipelines. There are several jenkins projects that will deployed this way: 
 Gitlab requires a Jenkins configuration (Settings--> Integrations) with the server URL and the username and password as well as the Jenkins pipeline project name.  Also triggers must be specified (on Push, MR, etc...)
 This permits the Gitlab "placeholder" project that has the source code to push the code to the Jenkins server so that the Jenkinsfile (configured on the Jenkins project itself rather than using a Jenkinsfile) can run the code through the pipeline.  The gitlab token to be used on the Jenkins server (see below) is a project level token and must be given Maintainer role rights and api scope for this to work.  The gitlab token will be configured on the Jenkinks gitlab plugin (see below) and will permit the code to be pulled from Gitlab and also for Jenkins to notifiy gitlab when it is done running the Jenkins pipeline.  
@@ -1079,3 +1084,92 @@ Kubernetes deployment using Jenkins and jenkins agent.
 First test manually on the kops-project14-EC2 jenkins agent from the terminal (essentially project 14). 
 Once the code is tested then implement the Jenkins pipeline test. 
 Once that is tested then can implement the gitlab VPS pipeline relay to the Jenkins pipeline. So the approach is very simmilar to that of project18 above.
+
+The agent executes the source code (the helm chart) from /opt/jenkins-slave directory as configured on the Jenkins controller for the node.
+Only the kubernetes stage is executed on the jenkins agent. All the earlier stages are run on the Jenkins controller.
+
+
+### There are many stages in the pipeline for this project:
+
+BUILD
+UNIT TEST (mvn test)
+INTEGRATION TEST (mvn verify, but in reality this would be more extensive)
+CODE ANALYSIS with checkstyle
+CODE ANALYSIS with sonarqube (note using sonar1 jdk17 to be compatible with jenkins controller after upgrading from jdk 11 to 17)
+SONARQUBE QG check and then relay back to Jenkins with a webhook configured on sonarqube to Jenkins
+Building Docker App image from source code (this is done on Jenkins controller as well)
+Deploy and Upload the docker container image to docker hub (my account)
+Remove unused docker image
+Kubernetes deploy using helm. This is done on the jenkins agent (described below). Helm is used to deploy the full stack from the helm chart in the source code. The agent executes from the /opt/jenkins-slave directory. This is the root directory of the agent as configured on the Jenkins controller.
+
+
+
+### Here is the production namespace after the helm deployment. It is a full stack. The tomcat docker image on docker hub is built from the source code and used for the frontend vproapp pod
+
+The image is on docker hub and then deployed using helm from the jenkins agent.
+
+Note the jenkins agent has to have kops installed, helm installed, aws cli installed and kubectl installed.
+This is why the agent was used to deploy the kubernetes rather than the jenkins controller. Putting all this stuff on jenkins controller is not good.
+
+
+ubuntu@ip-172-31-88-11:~/CICD_Docker_with_Helm_kops_Jenkins_Sonarqube$ kubectl get pod -n prod
+NAME                                             READY   STATUS    RESTARTS   AGE
+vproapp-5f9477dcd5-vn9r7                         1/1     Running   0          59s
+vprodb-849f57645b-hk6m4                          1/1     Running   0          59s
+vprofile-stack-vprofilecharts-5f48d5d59c-4q8kj   1/1     Running   0          59s
+vpromc-5c65464866-bd7q9                          1/1     Running   0          59s
+vpromq01-69b8ff77dc-z2752                        1/1     Running   0          59s
+
+
+ubuntu@ip-172-31-88-11:~/CICD_Docker_with_Helm_kops_Jenkins_Sonarqube$ helm list -n prod
+NAME            NAMESPACE       REVISION        UPDATED                                 STATUS          CHART               APP VERSION
+vprofile-stack  prod            1               2024-12-07 01:11:49.877957761 +0000 UTC deployed        vprofilecharts-0.1.01.16.0  
+
+
+ubuntu@ip-172-31-88-11:~/CICD_Docker_with_Helm_kops_Jenkins_Sonarqube$ kubectl get all -n prod
+NAME                                                 READY   STATUS    RESTARTS   AGE
+pod/vproapp-5f9477dcd5-vn9r7                         1/1     Running   0          117s
+pod/vprodb-849f57645b-hk6m4                          1/1     Running   0          117s
+pod/vprofile-stack-vprofilecharts-5f48d5d59c-4q8kj   1/1     Running   0          117s
+pod/vpromc-5c65464866-bd7q9                          1/1     Running   0          117s
+pod/vpromq01-69b8ff77dc-z2752                        1/1     Running   0          117s
+
+NAME                                    TYPE           CLUSTER-IP       EXTERNAL-IP                                                              PORT(S)        AGE
+service/vproapp-service                 LoadBalancer   100.68.3.98      af713616fc70749c7b35eb6ef0bdb771-641650723.us-east-1.elb.amazonaws.com   80:31948/TCP   117s
+service/vprocache01                     ClusterIP      100.64.243.173   <none>                                                                   11211/TCP      117s
+service/vprodb                          ClusterIP      100.67.144.2     <none>                                                                   3306/TCP       117s
+service/vprofile-stack-vprofilecharts   ClusterIP      100.66.169.219   <none>                                                                   80/TCP         117s
+service/vpromq01                        ClusterIP      100.71.18.122    <none>                                                                   5672/TCP       117s
+
+NAME                                            READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/vproapp                         1/1     1            1           117s
+deployment.apps/vprodb                          1/1     1            1           117s
+deployment.apps/vprofile-stack-vprofilecharts   1/1     1            1           117s
+deployment.apps/vpromc                          1/1     1            1           117s
+deployment.apps/vpromq01                        1/1     1            1           117s
+
+NAME                                                       DESIRED   CURRENT   READY   AGE
+replicaset.apps/vproapp-5f9477dcd5                         1         1         1       117s
+replicaset.apps/vprodb-849f57645b                          1         1         1       117s
+replicaset.apps/vprofile-stack-vprofilecharts-5f48d5d59c   1         1         1       117s
+replicaset.apps/vpromc-5c65464866                          1         1         1       117s
+replicaset.apps/vpromq01-69b8ff77dc                        1         1         1       117s
+
+### Cleanup involves doing a helm delete:
+
+ubuntu@ip-172-31-88-11:~/CICD_Docker_with_Helm_kops_Jenkins_Sonarqube$ helm list -n prod
+NAME            NAMESPACE       REVISION        UPDATED                                 STATUS          CHART               APP VERSION
+vprofile-stack  prod            2               2024-12-07 01:32:27.218518126 +0000 UTC deployed        vprofilecharts-0.1.01.16.0     
+ubuntu@ip-172-31-88-11:~/CICD_Docker_with_Helm_kops_Jenkins_Sonarqube$ helm delete vprofile-stack -n prod
+release "vprofile-stack" uninstalled
+ubuntu@ip-172-31-88-11:~/CICD_Docker_with_Helm_kops_Jenkins_Sonarqube$ kubectl get pod -n prod
+No resources found in prod namespace.
+
+
+
+Then do a kops delete of the kubernetes cluster:
+
+kops delete cluster --name= kops-project14.*********************.com --state=s3://vprofile-kops-s3-state-project14 --yes
+
+
+Then do a manual delete of the loadbalancer 
